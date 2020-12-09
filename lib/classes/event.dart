@@ -45,7 +45,7 @@ class Event implements EventInterface {
   }
 }
 
-abstract class EventInterface {
+mixin EventInterface {
   DateTime getDate();
   String getTitle();
   Widget getIcon();
