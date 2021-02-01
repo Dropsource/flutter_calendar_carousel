@@ -133,8 +133,10 @@ class CalendarCarousel<T extends EventInterface> extends StatefulWidget {
   final MainAxisAlignment dayMainAxisAlignment;
   final bool showIconBehindDayText;
   final ScrollPhysics pageScrollPhysics;
+  final bool shouldShowTransform;
 
   CalendarCarousel({
+    Key key,
     this.viewportFraction = 1.0,
     this.prevDaysTextStyle,
     this.daysTextStyle,
@@ -208,7 +210,8 @@ class CalendarCarousel<T extends EventInterface> extends StatefulWidget {
     this.dayMainAxisAlignment = MainAxisAlignment.center,
     this.showIconBehindDayText = false,
     this.pageScrollPhysics = const ScrollPhysics(),
-  });
+    this.shouldShowTransform = true,
+  }) : super(key: key);
 
   @override
   _CalendarState<T> createState() => _CalendarState<T>();
@@ -256,43 +259,7 @@ class _CalendarState<T extends EventInterface>
     if (widget.selectedDateTime != null)
       _selectedDate = widget.selectedDateTime;
 
-    if (widget.targetDateTime != null) {
-      if (widget.targetDateTime.difference(minDate).inDays < 0) {
-        _targetDate = minDate;
-      } else if (widget.targetDateTime.difference(maxDate).inDays > 0) {
-        _targetDate = maxDate;
-      } else {
-        _targetDate = widget.targetDateTime;
-      }
-    } else {
-      _targetDate = _selectedDate;
-    }
-
-    if (widget.weekFormat) {
-      _targetDate = _firstDayOfWeek(_targetDate);
-      for (int _cnt = 0;
-          0 >
-              minDate
-                  .add(Duration(days: 7 * _cnt))
-                  .difference(_targetDate)
-                  .inDays;
-          _cnt++) {
-        this._pageNum = _cnt + 1;
-      }
-    } else {
-      _targetDate = _selectedDate;
-      for (int _cnt = 0;
-          0 >
-              DateTime(
-                minDate.year,
-                minDate.month + _cnt,
-              )
-                  .difference(DateTime(_targetDate.year, _targetDate.month))
-                  .inDays;
-          _cnt++) {
-        this._pageNum = _cnt + 1;
-      }
-    }
+    _init();
 
     /// setup pageController
     _controller = PageController(
@@ -318,30 +285,8 @@ class _CalendarState<T extends EventInterface>
     if (widget.targetDateTime != null &&
         (widget.targetDateTime != _targetDate ||
             widget.weekFormat != oldWidget.weekFormat)) {
-      DateTime targetDate = widget.targetDateTime;
-      if (widget.targetDateTime.difference(minDate).inDays < 0) {
-        targetDate = minDate;
-      } else if (widget.targetDateTime.difference(maxDate).inDays > 0) {
-        targetDate = maxDate;
-      }
-      int _page = this._pageNum;
-      if (widget.weekFormat) {
-        final _pageIndex = _weeks.indexWhere((weekDays) => weekDays.any((day) =>
-            day.month == targetDate.month &&
-            day.day == targetDate.day &&
-            day.year == targetDate.year));
-        if (_pageIndex != null && _pageIndex != -1) {
-          _page = _pageIndex;
-        }
-      } else {
-        final _pageIndex = _dates.indexWhere((month) =>
-            month.year == targetDate.year && month.month == targetDate.month);
-        if (_pageIndex != null && _pageIndex != -1) {
-          _page = _pageIndex;
-        }
-      }
-
-      _setDate(_page);
+      _init();
+      _setDate(_pageNum);
     }
 
     super.didUpdateWidget(oldWidget);
@@ -373,15 +318,28 @@ class _CalendarState<T extends EventInterface>
             headerIconColor: widget.iconColor,
             leftButtonIcon: widget.leftButtonIcon,
             rightButtonIcon: widget.rightButtonIcon,
-            onLeftButtonPressed: () =>
-                this._pageNum > 0 ? _setDate(this._pageNum - 1) : null,
-            onRightButtonPressed: () => widget.weekFormat
-                ? (this._weeks.length - 1 > this._pageNum
+            onLeftButtonPressed: () {
+              // if (widget.onLeftArrowPressed != null) {
+              //   widget.onLeftArrowPressed();
+              // }
+
+              this._pageNum > 0 ? _setDate(this._pageNum - 1) : null;
+            },
+            onRightButtonPressed: () {
+              // if (widget.onRightArrowPressed != null) {
+              //   widget.onRightArrowPressed();
+              // }
+
+              if (widget.weekFormat) {
+                this._weeks.length - 1 > this._pageNum
                     ? _setDate(this._pageNum + 1)
-                    : null)
-                : (this._dates.length - 1 > this._pageNum
+                    : null;
+              } else {
+                this._dates.length - 1 > this._pageNum
                     ? _setDate(this._pageNum + 1)
-                    : null),
+                    : null;
+              }
+            },
             isTitleTouchable: widget.headerTitleTouchable,
             onHeaderTitlePressed: widget.onHeaderTitlePressed != null
                 ? widget.onHeaderTitlePressed
@@ -593,6 +551,9 @@ class _CalendarState<T extends EventInterface>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
+        if (!widget.shouldShowTransform) {
+          return child;
+        }
         double value = 1.0;
         if (_controller.position.haveDimensions) {
           value = _controller.page - slideIndex;
@@ -797,6 +758,27 @@ class _CalendarState<T extends EventInterface>
         ));
   }
 
+  _init() {
+    if (widget.targetDateTime != null) {
+      if (widget.targetDateTime.difference(minDate).inDays < 0) {
+        _targetDate = minDate;
+      } else if (widget.targetDateTime.difference(maxDate).inDays > 0) {
+        _targetDate = maxDate;
+      } else {
+        _targetDate = widget.targetDateTime;
+      }
+    } else {
+      _targetDate = _selectedDate;
+    }
+    if (widget.weekFormat) {
+      _pageNum = _targetDate.difference(_firstDayOfWeek(minDate)).inDays ~/ 7;
+    } else {
+      _pageNum = (_targetDate.year - minDate.year) * 12 +
+          _targetDate.month -
+          minDate.month;
+    }
+  }
+
   List<DateTime> _getDaysInWeek([DateTime selectedDate]) {
     if (selectedDate == null) selectedDate = new DateTime.now();
 
@@ -838,6 +820,7 @@ class _CalendarState<T extends EventInterface>
   }
 
   void _onDayLongPressed(DateTime picked) {
+    if (widget.onDayLongPressed == null) return;
     widget.onDayLongPressed(picked);
   }
 
